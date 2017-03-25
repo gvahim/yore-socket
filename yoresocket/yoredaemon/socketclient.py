@@ -1,9 +1,8 @@
 import threading
 
 from scapy.all import YO
-
-from constants import CLIENT_STATE, LAST_PACKET_BUFFER_SIZE
 from .. import serializer
+from constants import CLIENT_STATE, LAST_PACKET_BUFFER_SIZE
 from ..constants import SERIALIZER_CMD, BLOCKING, TIMEOUT_DEFAULT
 
 
@@ -11,14 +10,16 @@ class SocketClient(object):
     """
     A class that represents a YORE client.
     This class contains:
-        A socket that is used as an IPC mechanism to transfer control 
-        packages and data
-        Variables that keep track of the in/out data on this channel
-        LOCKS! A lot of locks to keep everything synchronized. We use an RLock 
-        in cases where a thread may call upon the lock more than once and we 
-        don't want to hang.
-        Status variables that keep track of the client's status and connection 
-        state.
+        (*) A socket that is used as an IPC mechanism to transfer control 
+            packages and data.
+        (*) Variables that keep track of the in/out data on this channel.
+        
+        (*) LOCKS! A lot of locks to keep everything synchronized. 
+            We use an RLock in cases where a thread may call upon the lock more 
+            than once and we don't want to hang.
+        
+        (*) Status variables that keep track of the client's status and 
+            connection state.
     """
 
     def __init__(self, sock):
@@ -30,9 +31,6 @@ class SocketClient(object):
         self.sid_generated = -1
         self.sid_received = -1
         self.listen_port = -1
-        self.last_packet_lock = threading.RLock()
-        self.last_packet = []
-        self.socket_state = CLIENT_STATE.NONE
         self.dest_port = -1
         self.yo_dest = -1
         self.initial_seq = -1
@@ -41,22 +39,28 @@ class SocketClient(object):
         self.fin_seq = -1
         self.fin_ack = -1
         self.fin_sid = -1
-        self.incoming_data_lock = threading.RLock()
-        self.incoming_data = ""
-        self.incoming_data_with_address = []
-        self.outgoing_data_lock = threading.RLock()
-        self.outgoing_data = ""
-        self.removable = False
-        self.acknowledge_received_events = dict()
-
-        self.error = None
-        self.socket = sock
         self.waiting_for_response = 0
         self.debug_id = 0
-        self.ipc_recv_buffer = ""
-        self.serializer = serializer.Serializer()
         self.blocking = BLOCKING
         self.timeout = TIMEOUT_DEFAULT
+
+        self.last_packet_lock = threading.RLock()
+        self.incoming_data_lock = threading.RLock()
+        self.outgoing_data_lock = threading.RLock()
+
+        self.last_packet = []
+        self.incoming_data_with_address = []
+        self.acknowledge_received_events = dict()
+
+        self.incoming_data = ""
+        self.outgoing_data = ""
+        self.ipc_recv_buffer = ""
+
+        self.socket_state = CLIENT_STATE.NONE
+        self.removable = False
+        self.error = None
+        self.socket = sock
+        self.serializer = serializer.Serializer()
 
     def finish_session(self, error=None):
         """
@@ -133,21 +137,22 @@ class SocketClient(object):
         except:
             self.removable = True
 
-    def initiate_session(self, accept_params=None, send_scss=1):
+    def initiate_session(self, accept_params=None, send_success=True):
         """
-        Initiate a new session for the client. This takes care of all the YO/RE 
-        state of the socket.
+        Initiate a new session for the client. 
+        This takes care of all the YO/RE state of the socket.
         It receives an optional Accept Parameters and Send Success.
         The accept parameters are relevant if a new client (Resocket) has woken 
-        up from an accept function. It needs
-        to notify us that it already has a session set up and wishes to register 
-        itself in the ProtocolDaemon with
-        the correct params. In this case, we return an accept success.
+        up from an accept function. 
+        It needs to notify us that it already has a session set up and wishes 
+        to register itself in the ProtocolDaemon with the correct params. 
+        In this case, we return an accept success.
         The other use case is if a client has initiated a session with the 
         connect method, in which case
         we return a success value and take care of setting up the session.
         :param accept_params: to send
-        :param send_scss: to send
+        :param send_success: to send
+        :type send_success: bool
         """
         # Handle a client that is initiated with accept parameters.
         if accept_params is not None:
@@ -168,7 +173,7 @@ class SocketClient(object):
             self.ack = 0
             self.sid_generated = -1
             self.socket_state = CLIENT_STATE.SESSION_ACTIVATED
-            if send_scss:
+            if send_success:
                 self.send_ipc(self.serializer.RESULT_SUCCESS,
                               SERIALIZER_CMD.CONNECT, ["CONNECT"])
             with self.last_packet_lock:
@@ -181,19 +186,25 @@ class SocketClient(object):
         Internal function
         Add packet to sent buffer
         :param pkt: str pkt to add to buffer
+        :type pkt: str | scapy.packet.Packet
         """
         if not isinstance(pkt, str):
             pkt = str(pkt[YO])
+
         if len(self.last_packet) == LAST_PACKET_BUFFER_SIZE:
             self.last_packet = self.last_packet[1:]
+
         self.last_packet.append(pkt)
 
     def add_last_packet(self, pkt, lock):
         """
         Add packet to sent buffer
         :param pkt: str pkt to add to buffer
+        :type pkt: str
+        
         :param lock: Use the SocketClient.last_packet_lock lock- should use if 
-        not used before
+                     not used before.
+        :type lock: bool
         """
         if lock:
             with self.last_packet_lock:
@@ -205,24 +216,35 @@ class SocketClient(object):
         """
         Internal function
         :param pkt: str pkt to check that in buffer. 
-        if in the buffer - remove it
-        :return: True if was in the buffer and remove / False
+                    if in the buffer - remove it
+        :type pkt: str | scapy.packet.Packet
+        
+        :return: True if was in the buffer and remove otherwise False
+        :rtype: bool
         """
         if not isinstance(pkt, str):
             pkt = str(pkt[YO])
+
         if pkt in self.last_packet:
             self.last_packet.remove(pkt)
             return True
+
         return False
 
     def in_last_packet(self, pkt, lock):
         """
-        :param pkt: str pkt to check that in buffer. 
-        if in the buffer - remove it
-        :return: True if was in the buffer and remove / False
+        :param pkt: str pkt to check that in buffer, 
+                    if in the buffer - remove it.
+        :type pkt: str
+        
         :param lock: Use the SocketClient.last_packet_lock lock- should use if 
-        not used before
+                     not used before
+        :type lock: bool
+        
+        :return: True if was in the buffer and remove otherwise False
+        :rtype: bool
         """
+
         if lock:
             with self.last_packet_lock:
                 return self.__in_last_packet(pkt)
