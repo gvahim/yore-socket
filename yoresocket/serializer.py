@@ -3,13 +3,15 @@ Author: YochaiE
 Date: 09.02.2016
 
 Description:
-A helper library. Contains the IPC serialization methods that are used both by the
-resocket and the resocket_daemon.
-We assume in a lot of places that the data is in the correct format. Additional hardening might be
-a good idea, even though no one is supposed to hack this layer :).
+A helper library. Contains the IPC serialization methods that are used both by 
+the resocket and the resocket_daemon.
+We assume in a lot of places that the data is in the correct format. 
+Additional hardening might be a good idea, 
+even though no one is supposed to hack this layer :).
 """
 
 import struct
+
 from YOREException import YOREException
 
 
@@ -25,7 +27,8 @@ class Serializer(object):
     # An IPC header size is always 8 bytes long - 4 Type and 4 Length.
     TLV_HEADER_SIZE = 8
 
-    # We support 2 types of objects to serialize - int and string (how convenient)
+    # We support 2 types of objects to serialize - int and string
+    # (how convenient)
     TYPE_INT = 0
     TYPE_STRING = 1
 
@@ -36,7 +39,8 @@ class Serializer(object):
     def serialize(self, cmd, args):
         """
         Serialize IPC data. Requires a cmd (hopefully one from the list), and
-        a list of argument to serialize. The arguments must be of type int, long or string.
+        a list of argument to serialize. The arguments must be of type int, 
+        long or string.
         :param cmd:  enum
         :param args: [args]
         :return: [data]
@@ -73,14 +77,16 @@ class Serializer(object):
         data_length = struct.unpack("<I", data[4:8])[0]
 
         # Start parsing through the data. Assume we got enough data.
-        # Once a TLV processing has been finished, append the arg to a list of args.
+        # Once a TLV processing has been finished,
+        # append the arg to a list of args.
         i = 0
         args = []
         while i < data_length:
             arg_type = struct.unpack("<I", data[i + 8:i + 12])[0]
             arg_length = struct.unpack("<I", data[i + 12:i + 16])[0]
             if arg_type == self.TYPE_INT:
-                arg_data = struct.unpack("<I", data[i + 16:i + 16 + arg_length])[0]
+                arg_data = struct.unpack("<I",
+                                         data[i + 16:i + 16 + arg_length])[0]
             elif arg_type == self.TYPE_STRING:
                 arg_data = data[i + 16:i + 16 + arg_length]
             else:

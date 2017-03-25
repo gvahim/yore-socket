@@ -16,6 +16,7 @@ def enum(*sequential, **named):
     enums = dict(zip(sequential, range(len(sequential))), **named)
     return type('Enum', (), enums)
 
+
 # The various Resocket state. Hardcoded values (internal enum).
 STATE = enum('NONE', 'BOUND', 'LISTEN', 'CONNECTION_ESTABLISHED')
 
@@ -26,18 +27,18 @@ SERIALIZER_CMD = enum('EMPTY',
                       'RECV_EMPTY',
                       'CLOSE',
                       'CONNECT',
-                        'BIND',
-                        'LISTEN',
-                        'ACCEPT',
-                        'SEND',
-                        'RECV',
-                        'EXIST',
-                        'SET_PROTOCOL',
-                        'SENDPING',
-                        'SET_BLOCKING',
-                        'SET_TIMEOUT',
-                        'GET_SID',
-                        'ADD_TO_ACK_COUNTER',
-                        'ADD_TO_SEQ_COUNTER')
+                      'BIND',
+                      'LISTEN',
+                      'ACCEPT',
+                      'SEND',
+                      'RECV',
+                      'EXIST',
+                      'SET_PROTOCOL',
+                      'SENDPING',
+                      'SET_BLOCKING',
+                      'SET_TIMEOUT',
+                      'GET_SID',
+                      'ADD_TO_ACK_COUNTER',
+                      'ADD_TO_SEQ_COUNTER')
 
 TIMEOUT_DEFAULT = 8

@@ -1,20 +1,26 @@
 import threading
 
+from scapy.all import YO
+
+from constants import CLIENT_STATE, LAST_PACKET_BUFFER_SIZE
 from .. import serializer
 from ..constants import SERIALIZER_CMD, BLOCKING, TIMEOUT_DEFAULT
-from constants import CLIENT_STATE, LAST_PACKET_BUFFER_SIZE
-from scapy.all import YO
+
 
 class SocketClient(object):
     """
     A class that represents a YORE client.
     This class contains:
-        A socket that is used as an IPC mechanism to transfer control packages and data
+        A socket that is used as an IPC mechanism to transfer control 
+        packages and data
         Variables that keep track of the in/out data on this channel
-        LOCKS! A lot of locks to keep everything synchronized. We use an RLock in cases where
-        a thread may call upon the lock more than once and we don't want to hang.
-        Status variables that keep track of the client's status and connection state.
+        LOCKS! A lot of locks to keep everything synchronized. We use an RLock 
+        in cases where a thread may call upon the lock more than once and we 
+        don't want to hang.
+        Status variables that keep track of the client's status and connection 
+        state.
     """
+
     def __init__(self, sock):
         """
         Initialize a new client. Expects only an IPC socket object as input.
@@ -54,11 +60,13 @@ class SocketClient(object):
 
     def finish_session(self, error=None):
         """
-        This function finishes a client session. We have multiple things to consider here:
+        This function finishes a client session. We have multiple things to 
+        consider here:
         - Finishing gracefully and sending a FIN if possible
         - Sending an error if we did not finish the session gracefully
         - Closing the IPC socket
-        - Setting this socket as removable so it will no longer be contained in our client list
+        - Setting this socket as removable so it will no longer be contained in 
+          our client list
         :param error: ErrorTuple
         """
         self.fin_sid = self.sid_generated
@@ -91,15 +99,17 @@ class SocketClient(object):
         # send the error code.
         # Otherwise, just close the socket gracefully
         if error is not None and self.socket_state != CLIENT_STATE.WAITING_FIN:
-            self.send_ipc(self.serializer.RESULT_ERROR, 0xffffffff, [error.code, error.description])
+            self.send_ipc(self.serializer.RESULT_ERROR, 0xffffffff,
+                          [error.code, error.description])
         else:
-            self.send_ipc(self.serializer.RESULT_SUCCESS, SERIALIZER_CMD.CLOSE, [])
+            self.send_ipc(self.serializer.RESULT_SUCCESS, SERIALIZER_CMD.CLOSE,
+                          [])
 
         self.socket_state = CLIENT_STATE.NONE
 
         self.socket.close()
 
-        # We no longer wait for any kind of response after our session has ended.
+        # We no longer wait for any kind of response after our session has ended
         self.waiting_for_response = 0
 
         # Mark this socket for removal
@@ -108,8 +118,9 @@ class SocketClient(object):
     def send_ipc(self, result, cmd, args):
         """
         A helper function that sends data over the IPC channel.
-        Usually we'd like to send back a result to a client's action, the requested CMD for
-        which the result is relevant (to avoid mismatch), and a list of args if necessary.
+        Usually we'd like to send back a result to a client's action, 
+        the requested CMD for which the result is relevant (to avoid mismatch), 
+        and a list of args if necessary.
         :param result: to send
         :param cmd: to send
         :param args: to send
@@ -124,19 +135,24 @@ class SocketClient(object):
 
     def initiate_session(self, accept_params=None, send_scss=1):
         """
-        Initiate a new session for the client. This takes care of all the YO/RE state of the socket.
+        Initiate a new session for the client. This takes care of all the YO/RE 
+        state of the socket.
         It receives an optional Accept Parameters and Send Success.
-        The accept parameters are relevant if a new client (Resocket) has woken up from an accept function. It needs
-        to notify us that it already has a session set up and wishes to register itself in the ProtocolDaemon with
+        The accept parameters are relevant if a new client (Resocket) has woken 
+        up from an accept function. It needs
+        to notify us that it already has a session set up and wishes to register 
+        itself in the ProtocolDaemon with
         the correct params. In this case, we return an accept success.
-        The other use case is if a client has initiated a session with the connect method, in which case
+        The other use case is if a client has initiated a session with the 
+        connect method, in which case
         we return a success value and take care of setting up the session.
         :param accept_params: to send
         :param send_scss: to send
         """
         # Handle a client that is initiated with accept parameters.
         if accept_params is not None:
-            self.send_ipc(self.serializer.RESULT_SUCCESS, SERIALIZER_CMD.ACCEPT, accept_params)
+            self.send_ipc(self.serializer.RESULT_SUCCESS, SERIALIZER_CMD.ACCEPT,
+                          accept_params)
             self.socket_state = CLIENT_STATE.INITIATING_CONNECTION
             self.seq = 0
             self.ack = 0
@@ -146,13 +162,15 @@ class SocketClient(object):
             with self.last_packet_lock:
                 self.last_packet = []
         else:
-            # Handle a client that is initiated without accept parameters (connect)
+            # Handle a client that is initiated without accept
+            # parameters (connect)
             self.seq = 0
             self.ack = 0
             self.sid_generated = -1
             self.socket_state = CLIENT_STATE.SESSION_ACTIVATED
             if send_scss:
-                self.send_ipc(self.serializer.RESULT_SUCCESS, SERIALIZER_CMD.CONNECT, ["CONNECT"])
+                self.send_ipc(self.serializer.RESULT_SUCCESS,
+                              SERIALIZER_CMD.CONNECT, ["CONNECT"])
             with self.last_packet_lock:
                 self.last_packet = []
 
@@ -174,7 +192,8 @@ class SocketClient(object):
         """
         Add packet to sent buffer
         :param pkt: str pkt to add to buffer
-        :param lock: Use the SocketClient.last_packet_lock lock- should use if not used before
+        :param lock: Use the SocketClient.last_packet_lock lock- should use if 
+        not used before
         """
         if lock:
             with self.last_packet_lock:
@@ -182,10 +201,11 @@ class SocketClient(object):
         else:
             self.__add_last_packet(pkt)
 
-    def __in_last_packet(self, pkt) :
+    def __in_last_packet(self, pkt):
         """
         Internal function
-        :param pkt: str pkt to check that in buffer. if in the buffer - remove it
+        :param pkt: str pkt to check that in buffer. 
+        if in the buffer - remove it
         :return: True if was in the buffer and remove / False
         """
         if not isinstance(pkt, str):
@@ -195,17 +215,16 @@ class SocketClient(object):
             return True
         return False
 
-
-    def in_last_packet(self, pkt, lock) :
+    def in_last_packet(self, pkt, lock):
         """
-        :param pkt: str pkt to check that in buffer. if in the buffer - remove it
+        :param pkt: str pkt to check that in buffer. 
+        if in the buffer - remove it
         :return: True if was in the buffer and remove / False
-        :param lock: Use the SocketClient.last_packet_lock lock- should use if not used before
+        :param lock: Use the SocketClient.last_packet_lock lock- should use if 
+        not used before
         """
         if lock:
             with self.last_packet_lock:
                 return self.__in_last_packet(pkt)
         else:
             return self.__in_last_packet(pkt)
-
-
